@@ -2,7 +2,7 @@ import base64
 import json
 import re
 import numpy as np
-from typing import Dict, TypedDict, Annotated, Sequence, List, Union, Any, Literal, cast
+from typing import Dict, TypedDict, Annotated, Sequence, List, Union, Any, Literal, cast, Optional
 from enum import Enum
 from datetime import datetime
 from langchain.prompts import PromptTemplate
@@ -522,7 +522,7 @@ def calculate_payment(damage_assessment: Dict) -> Dict:
 
 
 @tool
-def assess_damage(damage_image: str, test_mode: bool = False, test_damage_level: str = None) -> Dict:
+def assess_damage(damage_image: str, test_mode: bool = False, test_damage_level: Optional[str] = None) -> Dict:
     """
     Assesses the damage shown in an image using AI vision capabilities and semantic search.
     
@@ -633,8 +633,6 @@ def assess_damage(damage_image: str, test_mode: bool = False, test_damage_level:
                 "estimated_repair_cost": 1200.00,
                 "recommendation": "Approve claim for standard repair procedure"
             }
-
-
 @tool
 def authorize_payment(payment_amount: float, damage_level: str) -> Dict:
     """
@@ -704,8 +702,7 @@ def send_notification(recipient: str, claim_status: str, message: str) -> Dict:
         "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
 
-
-def damage_assessment_agent(state: ClaimState, test_mode: bool = False, test_damage_level: str = None) -> ClaimState:
+def damage_assessment_agent(state: ClaimState, test_mode: bool = False, test_damage_level: Optional[str] = None) -> ClaimState:
     """
     Agent that assesses the damage based on the image.
     
@@ -723,11 +720,17 @@ def damage_assessment_agent(state: ClaimState, test_mode: bool = False, test_dam
         damage_assessment_result = simulate_damage_assessment(test_damage_level)
     else:
         # Use the image to assess damage
-        damage_assessment_result = assess_damage.invoke({
-            "damage_image": state["damage_image"],
-            "test_mode": test_mode if test_mode else False,
-            "test_damage_level": test_damage_level if test_damage_level else None
-        })
+        if test_damage_level is not None:
+            damage_assessment_result = assess_damage.invoke({
+                "damage_image": state["damage_image"],
+                "test_mode": test_mode,
+                "test_damage_level": test_damage_level
+            })
+        else:
+            damage_assessment_result = assess_damage.invoke({
+                "damage_image": state["damage_image"],
+                "test_mode": test_mode
+            })
     
     # Update state with assessment results
     state["damage_assessment"] = damage_assessment_result
@@ -749,6 +752,7 @@ def damage_assessment_agent(state: ClaimState, test_mode: bool = False, test_dam
     state["claim_status"] = ClaimStatus.PAYMENT_PROCESSING
     
     return state
+
 
 # For policy verification agent
 def policy_verification_agent(state: ClaimState) -> ClaimState:
